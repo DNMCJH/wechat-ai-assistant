@@ -1,151 +1,162 @@
-# 校园公众号智能客服系统
+# WeChat Campus AI Customer Service
 
-基于 FastAPI 的微信公众号 AI 客服，支持 FAQ 匹配、RAG 知识库检索、多模型路由、质量评估、自动分类分流和数据分析。
+[中文文档](README.zh-CN.md)
 
-## 系统架构
+An intelligent customer service system for WeChat Official Accounts, built with FastAPI. Features FAQ matching, RAG-based knowledge retrieval, multi-model routing, response quality evaluation, automatic classification, and data-driven analytics.
+
+## Architecture
 
 ```
-用户消息 → 微信公众号 → Webhook
+User Message → WeChat Official Account → Webhook
   ↓
-[分类 Agent] → 判断问题类型
-  ├── 投诉/舆情/复杂 → 转人工 + 通知管理者
-  └── 普通问题 → AI 处理管线
+[Classification Agent] → Categorize query
+  ├── Complaint / Sensitive → Transfer to human + notify manager
+  └── Normal query → AI Pipeline
         ↓
-      FAQ 匹配 → 命中直接返回
+      FAQ Match → Direct answer if hit
         ↓
-      RAG 检索 → AI 生成回答
+      RAG Retrieval → Top-k context
         ↓
-      评估 Agent → 四维度打分
+      Model Router → Select model (DeepSeek / Claude)
         ↓
-      决策：自动回复 / 回复+确认 / 转人工
+      AI Generation → Draft response
         ↓
-      数据记录 → 统计分析 → 周报
+      Evaluation Agent → 4-dimension scoring
+        ↓
+      Decision: auto-reply / reply + confirm / transfer to human
+        ↓
+      Data Collection → Analytics → Weekly Report
 ```
 
-## 三层架构
+## Three-Layer Design
 
-| 层级 | 功能 | 模块 |
-|------|------|------|
-| ① 基础问答 | FAQ + RAG + 多模型 | faq_service, rag_service, ai_service, router |
-| ② 质量控制 | 分类 + 评估 + 通知 | classifier, evaluator, notification_service |
-| ③ 数据分析 | 记录 + 统计 + 周报 | collector, analyzer, reporter |
+| Layer | Purpose | Modules |
+|-------|---------|---------|
+| ① Q&A | FAQ + RAG + multi-model | faq_service, rag_service, ai_service, router |
+| ② Quality Control | Classification + evaluation + notification | classifier, evaluator, notification_service |
+| ③ Analytics | Logging + statistics + reporting | collector, analyzer, reporter |
 
-## 快速开始
+## Quick Start
 
-### 1. 安装依赖
+### 1. Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. 配置环境变量
+### 2. Configure environment
 
 ```bash
 cp .env.example .env
-# 编辑 .env 填入你的 API Key 和微信配置
+# Fill in your API keys and WeChat config
 ```
 
-### 3. 构建向量索引
+### 3. Build vector index
 
 ```bash
 python scripts/build_index.py
 ```
 
-### 4. 启动服务
+### 4. Start the server
 
 ```bash
 uvicorn app.main:app --reload --port 8000
 ```
 
-### 5. 测试
+### 5. Test
 
 ```bash
-# FAQ 命中测试
+# FAQ hit test
 curl -X POST http://localhost:8000/api/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "图书馆几点关门", "user_id": "test"}'
 
-# RAG + AI 测试
+# RAG + AI generation test
 curl -X POST http://localhost:8000/api/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "奖学金评审流程是什么", "user_id": "test"}'
 
-# 投诉分类测试
+# Complaint classification test
 curl -X POST http://localhost:8000/api/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "食堂饭菜太难吃了我要投诉", "user_id": "test"}'
 ```
 
-## 微信公众号接入
+## WeChat Integration
 
-1. 在微信公众平台 → 开发 → 基本配置中设置服务器地址为 `https://你的域名/webhook/wechat`
-2. 填入 Token（与 .env 中 WECHAT_TOKEN 一致）
-3. 消息加解密方式选择"明文模式"
-4. 配置模板消息用于管理者通知
+1. Go to WeChat Official Account Platform → Development → Basic Configuration
+2. Set server URL to `https://your-domain/webhook/wechat`
+3. Set Token (must match `WECHAT_TOKEN` in `.env`)
+4. Select "Plaintext" for message encryption
+5. Configure template messages for manager notifications
 
-## 评估维度
+## Evaluation Dimensions
 
-| 维度 | 权重 | 说明 |
-|------|------|------|
-| 语义相关性 | 30% | 回答是否切题 |
-| 正确性 | 35% | 内容是否与事实匹配 |
-| 完整性 | 20% | 是否完整解决问题 |
-| 风险评估 | 15% | 是否涉及敏感内容 |
+| Dimension | Weight | Description |
+|-----------|--------|-------------|
+| Relevance | 30% | Whether the answer addresses the question |
+| Correctness | 35% | Whether content matches knowledge base / facts |
+| Completeness | 20% | Whether the answer fully resolves the query |
+| Risk | 15% | Whether it involves sensitive content |
 
-决策阈值：≥0.85 自动回复，0.65~0.85 回复+通知确认，<0.65 转人工
+Decision thresholds: ≥0.80 auto-reply, 0.60~0.80 reply + notify for confirmation, <0.60 transfer to human
 
-## 数据分析
+## Analytics
 
-系统自动记录所有交互数据到 SQLite，支持：
-- 高频问题统计
-- 分类趋势分析
-- AI 质量评分分析
-- FAQ 更新建议
-- 自动生成周报
+All interactions are automatically logged to SQLite, supporting:
+- High-frequency question statistics
+- Category trend analysis
+- AI quality score analysis
+- FAQ update recommendations
+- Automated weekly reports
 
-## 项目结构
+## Project Structure
 
 ```
 wechat-ai-assistant/
 ├── app/
-│   ├── main.py              # FastAPI 入口
-│   ├── config.py            # 配置管理
-│   ├── router.py            # 模型路由
+│   ├── main.py              # FastAPI entry point
+│   ├── config.py            # Configuration
+│   ├── router.py            # Model routing
 │   ├── api/
-│   │   ├── chat.py          # JSON API
-│   │   └── wechat.py        # 微信 webhook
+│   │   ├── chat.py          # JSON API (dev/test)
+│   │   └── wechat.py        # WeChat webhook (XML adapter)
 │   ├── core/
-│   │   ├── pipeline.py      # 主处理管线
-│   │   ├── classifier.py    # 分类 Agent
-│   │   └── evaluator.py     # 评估 Agent
+│   │   ├── pipeline.py      # Main processing pipeline
+│   │   ├── classifier.py    # Classification agent
+│   │   └── evaluator.py     # Evaluation agent
 │   ├── services/
-│   │   ├── ai_service.py    # AI 模型调用
-│   │   ├── faq_service.py   # FAQ 匹配
-│   │   ├── rag_service.py   # RAG 检索
+│   │   ├── ai_service.py    # AI model calls (DeepSeek + Claude)
+│   │   ├── faq_service.py   # FAQ matching
+│   │   ├── rag_service.py   # RAG retrieval
 │   │   ├── embedding_service.py
 │   │   ├── wechat_service.py
 │   │   └── notification_service.py
 │   ├── data_layer/
-│   │   ├── collector.py     # 数据收集
-│   │   ├── analyzer.py      # 统计分析
-│   │   └── reporter.py      # 周报生成
+│   │   ├── collector.py     # Data collection
+│   │   ├── analyzer.py      # Statistical analysis
+│   │   └── reporter.py      # Report generation
 │   └── models/
-│       └── message.py       # 数据模型
+│       └── message.py       # Data models
 ├── data/
-│   ├── faq.json             # FAQ 数据
-│   └── documents/           # 知识库文档
+│   ├── faq.json             # FAQ dataset
+│   └── documents/           # Knowledge base documents
 ├── scripts/
-│   └── build_index.py       # 构建向量索引
+│   └── build_index.py       # Build FAISS vector index
 ├── .env.example
 ├── requirements.txt
 └── README.md
 ```
 
-## 技术栈
+## Tech Stack
 
 - Python 3.11+ / FastAPI / Pydantic
 - sentence-transformers (BAAI/bge-small-zh-v1.5)
-- FAISS 向量检索
-- DeepSeek + Claude 双模型
-- SQLite 数据存储
-- 微信公众号 API
+- FAISS vector search
+- DeepSeek + Claude dual-model routing
+- SQLite analytics storage
+- WeChat Official Account API
+
+## License
+
+See [LICENSE](LICENSE) for details.
