@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from app.models.message import PipelineResult
 from app.core.classifier import classify
@@ -60,5 +61,42 @@ async def process_message(query: str, user_id: str = "") -> PipelineResult:
         labels=classification.labels,
         evaluation=eval_result,
         action=action,
+        source="rag_ai",
+    )
+
+
+async def process_message_fast(query: str, user_id: str = "") -> PipelineResult:
+    """Optimized pipeline for WeChat sync reply: parallel classify+RAG, skip eval."""
+    classify_task = asyncio.create_task(classify(query))
+
+    faq_answer = faq_service.match(query)
+    if faq_answer:
+        classify_task.cancel()
+        return PipelineResult(reply=faq_answer, action="auto", source="faq")
+
+    rag_results = rag_service.search(query)
+    context = "\n\n".join(rag_results) if rag_results else ""
+
+    classification = await classify_task
+    logger.info(f"Classification: {classification.category} ({classification.confidence})")
+
+    if classification.needs_human:
+        return PipelineResult(
+            reply=HUMAN_REPLY,
+            category=classification.category,
+            labels=classification.labels,
+            action="human",
+            source="human",
+        )
+
+    model = select_model(query)
+    logger.info(f"Using model (fast): {model}")
+    answer = await generate_answer(query, context, model)
+
+    return PipelineResult(
+        reply=answer,
+        category=classification.category,
+        labels=classification.labels,
+        action="auto",
         source="rag_ai",
     )

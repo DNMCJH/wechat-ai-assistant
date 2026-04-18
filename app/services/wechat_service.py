@@ -49,6 +49,7 @@ async def get_access_token() -> str:
             },
         )
         data = resp.json()
+        logger.info(f"Access token response: {data}")
         _access_token = data.get("access_token", "")
         _token_expires = time.time() + data.get("expires_in", 7200) - 300
         return _access_token
@@ -57,7 +58,7 @@ async def get_access_token() -> str:
 async def send_customer_message(openid: str, content: str):
     token = await get_access_token()
     async with httpx.AsyncClient() as client:
-        await client.post(
+        resp = await client.post(
             f"https://api.weixin.qq.com/cgi-bin/message/custom/send?access_token={token}",
             json={
                 "touser": openid,
@@ -65,3 +66,4 @@ async def send_customer_message(openid: str, content: str):
                 "text": {"content": content},
             },
         )
+        logger.info(f"Send message response: {resp.json()}")
