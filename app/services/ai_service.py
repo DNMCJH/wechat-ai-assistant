@@ -1,7 +1,7 @@
 import json
 import logging
 import httpx
-from app.config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, CLAUDE_API_KEY
+from app.config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, CLAUDE_API_KEY, CLAUDE_BASE_URL
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +47,8 @@ async def _call_deepseek(prompt: str) -> str:
 
 
 async def _call_claude(prompt: str) -> str:
+    if CLAUDE_BASE_URL:
+        return await _call_claude_openai_compat(prompt)
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
             "https://api.anthropic.com/v1/messages",
@@ -64,6 +66,26 @@ async def _call_claude(prompt: str) -> str:
         )
         resp.raise_for_status()
         return resp.json()["content"][0]["text"]
+
+
+async def _call_claude_openai_compat(prompt: str) -> str:
+    """Call Claude via OpenAI-compatible proxy (cc switch)."""
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.post(
+            f"{CLAUDE_BASE_URL}/v1/chat/completions",
+            headers={"Authorization": f"Bearer {CLAUDE_API_KEY}"},
+            json={
+                "model": "claude-sonnet-4-20250514",
+                "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
+                ],
+                "max_tokens": 1024,
+                "temperature": 0.7,
+            },
+        )
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"]
 
 
 async def call_for_json(prompt: str, system: str = "") -> dict:

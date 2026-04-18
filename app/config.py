@@ -10,6 +10,7 @@ DATA_DIR = BASE_DIR / "data"
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "")
+CLAUDE_BASE_URL = os.getenv("CLAUDE_BASE_URL", "")
 
 WECHAT_TOKEN = os.getenv("WECHAT_TOKEN", "")
 WECHAT_APPID = os.getenv("WECHAT_APPID", "")
