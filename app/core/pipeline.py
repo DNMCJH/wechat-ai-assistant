@@ -93,10 +93,21 @@ async def process_message_fast(query: str, user_id: str = "") -> PipelineResult:
     logger.info(f"Using model (fast): {model}")
     answer = await generate_answer(query, context, model)
 
+    eval_result = await evaluate(query, context, answer)
+    logger.info(f"Eval score (fast): {eval_result.weighted_score}")
+
+    if eval_result.weighted_score >= EVAL_HIGH:
+        action = "auto"
+    elif eval_result.weighted_score >= EVAL_LOW:
+        action = "confirm"
+    else:
+        action = "human"
+
     return PipelineResult(
         reply=answer,
         category=classification.category,
         labels=classification.labels,
-        action="auto",
+        evaluation=eval_result,
+        action=action,
         source="rag_ai",
     )

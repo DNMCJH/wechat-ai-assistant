@@ -63,6 +63,7 @@ async def _process_and_cache(from_user: str, query: str):
                 "query": query,
                 "score": str(result.evaluation.weighted_score) if result.evaluation else "N/A",
                 "labels": ", ".join(result.labels),
+                "reply": result.reply,
             })
     except Exception as e:
         logger.error(f"Process failed for {from_user}: {e}")

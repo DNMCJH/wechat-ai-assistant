@@ -17,6 +17,7 @@ WECHAT_APPID = os.getenv("WECHAT_APPID", "")
 WECHAT_APPSECRET = os.getenv("WECHAT_APPSECRET", "")
 MANAGER_OPENIDS = [x.strip() for x in os.getenv("MANAGER_OPENIDS", "").split(",") if x.strip()]
 WECHAT_TEMPLATE_ID = os.getenv("WECHAT_TEMPLATE_ID", "")
+WECOM_WEBHOOK_URL = os.getenv("WECOM_WEBHOOK_URL", "")
 
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5")
 FAQ_THRESHOLD = float(os.getenv("FAQ_THRESHOLD", "0.85"))
