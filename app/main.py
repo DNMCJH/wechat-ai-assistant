@@ -5,6 +5,7 @@ from app.services import faq_service, rag_service
 from app.data_layer.collector import init_db
 from app.api.chat import router as chat_router
 from app.api.wechat import router as wechat_router
+from app.api.stats import router as stats_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,6 +28,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="校园公众号智能客服", version="1.0.0", lifespan=lifespan)
 app.include_router(chat_router)
 app.include_router(wechat_router)
+app.include_router(stats_router)
 
 
 @app.get("/health")
