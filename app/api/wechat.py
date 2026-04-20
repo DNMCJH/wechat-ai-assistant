@@ -12,7 +12,7 @@ from app.data_layer.collector import record
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/webhook", tags=["wechat"])
 
-WECHAT_TIMEOUT = 4.5
+WECHAT_TIMEOUT = 3.0
 THINKING_REPLY = "正在思考中，请稍后发送【查询】获取回答~"
 CACHE_TTL = 300
 
