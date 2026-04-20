@@ -101,3 +101,22 @@ async def weekly_report():
         report += f"  · {r['query'][:30]}（{r['cnt']}次）\n"
 
     return {"report_text": report, "total": total, "avg_score": avg_score, "low_count": low_count, "human_count": human_count}
+
+
+@router.post("/send-weekly-report")
+async def send_weekly_report():
+    """Generate and push weekly report to WeCom group."""
+    from app.config import WECOM_WEBHOOK_URL
+    import httpx
+
+    if not WECOM_WEBHOOK_URL:
+        return {"error": "WECOM_WEBHOOK_URL not configured"}
+
+    data = await weekly_report()
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            WECOM_WEBHOOK_URL,
+            json={"msgtype": "text", "text": {"content": data["report_text"]}},
+            timeout=10,
+        )
+    return {"status": "sent", "response": resp.json()}
