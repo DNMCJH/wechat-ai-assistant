@@ -12,6 +12,7 @@ venv/
 data/index.faiss
 data/chunks.json
 data/analytics.db
+data/content.db
 
 # IDE
 .vscode/

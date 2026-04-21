@@ -27,18 +27,18 @@ async def generate_answer(query: str, context: str = "", model: str = "deepseek"
         return FALLBACK_REPLY
 
 
-async def _call_deepseek(prompt: str) -> str:
-    async with httpx.AsyncClient(timeout=30) as client:
+async def _call_deepseek(prompt: str, system: str = SYSTEM_PROMPT, timeout: int = 30, max_tokens: int = 1024) -> str:
+    async with httpx.AsyncClient(timeout=timeout) as client:
         resp = await client.post(
             f"{DEEPSEEK_BASE_URL}/v1/chat/completions",
             headers={"Authorization": f"Bearer {DEEPSEEK_API_KEY}"},
             json={
                 "model": "deepseek-chat",
                 "messages": [
-                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "system", "content": system},
                     {"role": "user", "content": prompt},
                 ],
-                "max_tokens": 1024,
+                "max_tokens": max_tokens,
                 "temperature": 0.7,
             },
         )
@@ -88,8 +88,21 @@ async def _call_claude_openai_compat(prompt: str) -> str:
         return resp.json()["choices"][0]["message"]["content"]
 
 
+async def generate_long_content(prompt: str, system: str = "") -> str:
+    """Generate long-form content with extended timeout and token limit."""
+    try:
+        return await _call_deepseek(
+            prompt,
+            system=system or SYSTEM_PROMPT,
+            timeout=120,
+            max_tokens=4096,
+        )
+    except Exception as e:
+        logger.error(f"Long content generation failed: {e}")
+        return ""
+
+
 async def call_for_json(prompt: str, system: str = "") -> dict:
-    """Call DeepSeek and parse JSON response. Used by classifier and evaluator."""
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(
