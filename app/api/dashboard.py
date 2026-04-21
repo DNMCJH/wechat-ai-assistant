@@ -212,7 +212,7 @@ async def preview_article(article_id: int, msg: str = "", msg_type: str = "succe
         actions_html += f'<form method="post" action="/dashboard/action/review/{article_id}"><button class="btn btn-orange" type="submit">Re-review</button></form>'
     elif s == "formatted":
         actions_html += f'<form method="post" action="/dashboard/action/publish/{article_id}" onsubmit="return confirm(\'Upload to WeChat draft box?\')"><button class="btn btn-green" type="submit">Publish to WeChat</button></form>'
-        actions_html += f'<button class="btn btn-blue" onclick="copyHtml()">Copy HTML</button>'
+        actions_html += f'<button class="btn btn-blue" onclick="copyRichText()">Copy to Clipboard</button>'
     elif s == "published":
         mid = article.get("media_id", "")
         actions_html += f'<div style="font-size:13px;color:#07c160;margin-bottom:8px">Published successfully</div>'
@@ -220,18 +220,35 @@ async def preview_article(article_id: int, msg: str = "", msg_type: str = "succe
     actions_html += f'<a href="/dashboard" class="btn btn-gray">Back</a></div>'
 
     escaped_html = html_content.replace("\\", "\\\\").replace("`", "\\`").replace("$", "\\$")
-    copy_script = f"""<textarea class="copy-area" id="htmlSource">{html_content}</textarea>
+    copy_script = f"""<div id="richTextSource" style="position:fixed;left:-9999px">{html_content}</div>
 <script>
-function copyHtml() {{
-  const el = document.getElementById('htmlSource');
-  el.style.position = 'fixed'; el.style.left = '0'; el.style.top = '0';
-  el.select(); document.execCommand('copy');
-  el.style.position = 'fixed'; el.style.left = '-9999px';
-  const toast = document.createElement('div');
-  toast.className = 'toast toast-success';
-  toast.textContent = 'HTML copied — paste into WeChat MP editor';
-  document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 3500);
+async function copyRichText() {{
+  const html = document.getElementById('richTextSource').innerHTML;
+  try {{
+    const blob = new Blob([html], {{type: 'text/html'}});
+    const item = new ClipboardItem({{'text/html': blob}});
+    await navigator.clipboard.write([item]);
+    showToast('Copied — paste directly into WeChat MP editor', 'success');
+  }} catch(e) {{
+    // Fallback: select rendered content and copy
+    const el = document.getElementById('richTextSource');
+    el.style.left = '0'; el.style.top = '0';
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const sel = window.getSelection();
+    sel.removeAllRanges(); sel.addRange(range);
+    document.execCommand('copy');
+    sel.removeAllRanges();
+    el.style.left = '-9999px';
+    showToast('Copied — paste directly into WeChat MP editor', 'success');
+  }}
+}}
+function showToast(msg, type) {{
+  const t = document.createElement('div');
+  t.className = 'toast toast-' + type;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
 }}
 </script>"""
 

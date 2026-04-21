@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 WECHAT_ERROR_MESSAGES = {
     40001: "access_token 无效，请检查 AppID/AppSecret",
     40002: "不合法的凭证类型",
-    48001: "当前公众号没有该接口权限（个人订阅号不支持草稿箱接口）",
+    48001: "当前公众号没有该接口权限，请使用 Copy HTML 手动发布",
     48004: "接口未被授权",
     48006: "接口已废弃",
     45009: "接口调用超过限制",
@@ -21,7 +21,12 @@ class PublishError(Exception):
     def __init__(self, errcode: int, errmsg: str):
         self.errcode = errcode
         self.errmsg = errmsg
-        human_msg = WECHAT_ERROR_MESSAGES.get(errcode, errmsg)
+        human_msg = WECHAT_ERROR_MESSAGES.get(errcode)
+        if not human_msg:
+            if "invalid media_id" in errmsg or "media_id" in errmsg:
+                human_msg = "草稿箱接口不可用（个人订阅号限制），请使用 Copy HTML 手动发布"
+            else:
+                human_msg = errmsg
         super().__init__(f"[{errcode}] {human_msg}")
         self.human_message = human_msg
 
