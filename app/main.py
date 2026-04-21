@@ -8,6 +8,7 @@ from app.api.chat import router as chat_router
 from app.api.wechat import router as wechat_router
 from app.api.stats import router as stats_router
 from app.api.content import router as content_router
+from app.api.dashboard import router as dashboard_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,6 +34,7 @@ app.include_router(chat_router)
 app.include_router(wechat_router)
 app.include_router(stats_router)
 app.include_router(content_router)
+app.include_router(dashboard_router)
 
 
 @app.get("/health")

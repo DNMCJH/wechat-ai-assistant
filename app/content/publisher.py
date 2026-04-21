@@ -1,40 +1,33 @@
 import logging
 import httpx
-from app.config import WECHAT_APPID, WECHAT_APPSECRET
+from app.services.wechat_service import get_access_token
 
 logger = logging.getLogger(__name__)
 
-_access_token: str = ""
-_token_expires: float = 0
+WECHAT_ERROR_MESSAGES = {
+    40001: "access_token 无效，请检查 AppID/AppSecret",
+    40002: "不合法的凭证类型",
+    48001: "当前公众号没有该接口权限（个人订阅号不支持草稿箱接口）",
+    48004: "接口未被授权",
+    48006: "接口已废弃",
+    45009: "接口调用超过限制",
+    45010: "创建菜单个数超过限制",
+    87009: "草稿内容不合法",
+    -1: "微信系统繁忙，请稍后重试",
+}
 
 
-async def _get_access_token() -> str:
-    global _access_token, _token_expires
-    import time
-    if _access_token and time.time() < _token_expires:
-        return _access_token
-
-    async with httpx.AsyncClient(timeout=10) as client:
-        resp = await client.get(
-            "https://api.weixin.qq.com/cgi-bin/token",
-            params={
-                "grant_type": "client_credential",
-                "appid": WECHAT_APPID,
-                "secret": WECHAT_APPSECRET,
-            },
-        )
-        data = resp.json()
-    if "access_token" not in data:
-        logger.error(f"Failed to get access token: {data}")
-        raise RuntimeError(f"WeChat token error: {data.get('errmsg', 'unknown')}")
-    _access_token = data["access_token"]
-    _token_expires = time.time() + data.get("expires_in", 7200) - 300
-    return _access_token
+class PublishError(Exception):
+    def __init__(self, errcode: int, errmsg: str):
+        self.errcode = errcode
+        self.errmsg = errmsg
+        human_msg = WECHAT_ERROR_MESSAGES.get(errcode, errmsg)
+        super().__init__(f"[{errcode}] {human_msg}")
+        self.human_message = human_msg
 
 
 async def upload_draft(title: str, content_html: str, digest: str = "") -> str:
-    """Upload article as draft via WeChat MP API. Returns media_id."""
-    token = await _get_access_token()
+    token = await get_access_token()
     article = {
         "title": title,
         "content": content_html,
@@ -50,7 +43,9 @@ async def upload_draft(title: str, content_html: str, digest: str = "") -> str:
         )
         data = resp.json()
     if "media_id" not in data:
+        errcode = data.get("errcode", -1)
+        errmsg = data.get("errmsg", "unknown")
         logger.error(f"Draft upload failed: {data}")
-        raise RuntimeError(f"Draft upload error: {data.get('errmsg', 'unknown')}")
+        raise PublishError(errcode, errmsg)
     logger.info(f"Draft uploaded: {data['media_id']}")
     return data["media_id"]
