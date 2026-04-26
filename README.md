@@ -13,13 +13,15 @@ User Message → WeChat Official Account → Webhook
   ├── Complaint / Sensitive → Transfer to human + notify manager
   └── Normal query → AI Pipeline
         ↓
-      FAQ Match → Direct answer if hit
+      Keyword Match → Instant reply for greetings
         ↓
-      RAG Retrieval → Top-k context
+      FAQ Match → Direct answer if hit (embedding similarity)
+        ↓
+      RAG Retrieval → Top-k context from knowledge base
         ↓
       Model Router → Select model (DeepSeek / Claude)
         ↓
-      AI Generation → Draft response
+      AI Generation → Draft response (with multi-turn history)
         ↓
       Evaluation Agent → 4-dimension scoring
         ↓
@@ -32,9 +34,9 @@ User Message → WeChat Official Account → Webhook
 
 | Layer | Purpose | Modules |
 |-------|---------|---------|
-| ① Q&A | FAQ + RAG + multi-model | faq_service, rag_service, ai_service, router |
+| ① Q&A | Keyword + FAQ + RAG + multi-model + multi-turn | keyword_service, faq_service, rag_service, ai_service, conversation_service, router |
 | ② Quality Control | Classification + evaluation + notification | classifier, evaluator, notification_service |
-| ③ Analytics | Logging + statistics + reporting | collector, analyzer, reporter |
+| ③ Analytics | Logging + statistics + reporting + dashboard | collector, analyzer, reporter, dashboard |
 
 ## Quick Start
 
@@ -127,7 +129,9 @@ wechat-ai-assistant/
 │   │   └── evaluator.py     # Evaluation agent
 │   ├── services/
 │   │   ├── ai_service.py    # AI model calls (DeepSeek + Claude)
-│   │   ├── faq_service.py   # FAQ matching
+│   │   ├── faq_service.py   # FAQ matching (embedding similarity)
+│   │   ├── keyword_service.py # Keyword quick-reply (greetings etc.)
+│   │   ├── conversation_service.py # Multi-turn session memory
 │   │   ├── rag_service.py   # RAG retrieval
 │   │   ├── embedding_service.py
 │   │   ├── wechat_service.py
@@ -140,6 +144,7 @@ wechat-ai-assistant/
 │       └── message.py       # Data models
 ├── data/
 │   ├── faq.json             # FAQ dataset
+│   ├── keywords.json        # Keyword quick-reply rules
 │   └── documents/           # Knowledge base documents
 ├── scripts/
 │   └── build_index.py       # Build FAISS vector index

@@ -13,9 +13,11 @@
   ├── 投诉/舆情/复杂 → 转人工 + 通知管理者
   └── 普通问题 → AI 处理管线
         ↓
-      FAQ 匹配 → 命中直接返回
+      关键词匹配 → 寒暄类秒回
         ↓
-      RAG 检索 → AI 生成回答
+      FAQ 匹配 → 命中直接返回（语义相似度）
+        ↓
+      RAG 检索 → AI 生成回答（带多轮对话上下文）
         ↓
       评估 Agent → 四维度打分
         ↓
@@ -28,9 +30,9 @@
 
 | 层级 | 功能 | 模块 |
 |------|------|------|
-| ① 基础问答 | FAQ + RAG + 多模型 | faq_service, rag_service, ai_service, router |
+| ① 基础问答 | 关键词 + FAQ + RAG + 多模型 + 多轮对话 | keyword_service, faq_service, rag_service, ai_service, conversation_service, router |
 | ② 质量控制 | 分类 + 评估 + 通知 | classifier, evaluator, notification_service |
-| ③ 数据分析 | 记录 + 统计 + 周报 | collector, analyzer, reporter |
+| ③ 数据分析 | 记录 + 统计 + 周报 + 管理面板 | collector, analyzer, reporter, dashboard |
 
 ## 快速开始
 
@@ -123,6 +125,8 @@ wechat-ai-assistant/
 │   ├── services/
 │   │   ├── ai_service.py    # AI 模型调用
 │   │   ├── faq_service.py   # FAQ 匹配
+│   │   ├── keyword_service.py # 关键词快速回复
+│   │   ├── conversation_service.py # 多轮对话记忆
 │   │   ├── rag_service.py   # RAG 检索
 │   │   ├── embedding_service.py
 │   │   ├── wechat_service.py
@@ -135,6 +139,7 @@ wechat-ai-assistant/
 │       └── message.py       # 数据模型
 ├── data/
 │   ├── faq.json             # FAQ 数据
+│   ├── keywords.json        # 关键词快速回复规则
 │   └── documents/           # 知识库文档
 ├── scripts/
 │   └── build_index.py       # 构建向量索引
