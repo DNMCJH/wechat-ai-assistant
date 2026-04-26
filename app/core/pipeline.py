@@ -3,8 +3,9 @@ import logging
 from app.models.message import PipelineResult
 from app.core.classifier import classify
 from app.core.evaluator import evaluate
-from app.services import faq_service, rag_service
+from app.services import faq_service, rag_service, keyword_service
 from app.services.ai_service import generate_answer
+from app.services.conversation_service import add_message, get_history
 from app.router import select_model
 from app.config import EVAL_HIGH, EVAL_LOW
 
@@ -26,6 +27,17 @@ async def process_message(query: str, user_id: str = "") -> PipelineResult:
             source="human",
         )
 
+    kw_answer = keyword_service.match(query)
+    if kw_answer:
+        logger.info("Keyword hit")
+        return PipelineResult(
+            reply=kw_answer,
+            category=classification.category,
+            labels=classification.labels,
+            action="auto",
+            source="keyword",
+        )
+
     faq_answer = faq_service.match(query)
     if faq_answer:
         logger.info("FAQ hit")
@@ -42,7 +54,11 @@ async def process_message(query: str, user_id: str = "") -> PipelineResult:
 
     model = select_model(query)
     logger.info(f"Using model: {model}")
-    answer = await generate_answer(query, context, model)
+    history = get_history(user_id) if user_id else []
+    add_message(user_id, "user", query) if user_id else None
+    answer = await generate_answer(query, context, model, history=history)
+    if user_id:
+        add_message(user_id, "assistant", answer)
 
     eval_result = await evaluate(query, context, answer)
     logger.info(f"Evaluation score: {eval_result.weighted_score}")
@@ -69,6 +85,11 @@ async def process_message_fast(query: str, user_id: str = "") -> PipelineResult:
     """Optimized pipeline for WeChat sync reply: parallel classify+RAG, skip eval."""
     classify_task = asyncio.create_task(classify(query))
 
+    kw_answer = keyword_service.match(query)
+    if kw_answer:
+        classify_task.cancel()
+        return PipelineResult(reply=kw_answer, action="auto", source="keyword")
+
     faq_answer = faq_service.match(query)
     if faq_answer:
         classify_task.cancel()
@@ -91,7 +112,11 @@ async def process_message_fast(query: str, user_id: str = "") -> PipelineResult:
 
     model = select_model(query)
     logger.info(f"Using model (fast): {model}")
-    answer = await generate_answer(query, context, model)
+    history = get_history(user_id) if user_id else []
+    add_message(user_id, "user", query) if user_id else None
+    answer = await generate_answer(query, context, model, history=history)
+    if user_id:
+        add_message(user_id, "assistant", answer)
 
     eval_result = await evaluate(query, context, answer)
     logger.info(f"Eval score (fast): {eval_result.weighted_score}")

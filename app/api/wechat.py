@@ -105,6 +105,12 @@ async def wechat_message(request: Request, bg: BackgroundTasks):
         reply_xml = build_xml_reply(to_user, from_user, "暂无待查询的回答，请直接提问~")
         return Response(content=reply_xml, media_type="application/xml")
 
+    from app.services.keyword_service import match as kw_match
+    kw_answer = kw_match(query)
+    if kw_answer:
+        reply_xml = build_xml_reply(to_user, from_user, kw_answer)
+        return Response(content=reply_xml, media_type="application/xml")
+
     from app.services.faq_service import match
     faq_answer = match(query)
     if faq_answer:

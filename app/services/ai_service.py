@@ -14,30 +14,31 @@ SYSTEM_PROMPT = (
 FALLBACK_REPLY = "抱歉，系统暂时无法处理您的问题，请稍后再试或联系人工客服。"
 
 
-async def generate_answer(query: str, context: str = "", model: str = "deepseek") -> str:
+async def generate_answer(query: str, context: str = "", model: str = "deepseek", history: list[dict] = None) -> str:
     prompt = query
     if context:
         prompt = f"参考资料：\n{context}\n\n用户问题：{query}"
     try:
         if model == "claude":
-            return await _call_claude(prompt)
-        return await _call_deepseek(prompt)
+            return await _call_claude(prompt, history=history)
+        return await _call_deepseek(prompt, history=history)
     except Exception as e:
         logger.error(f"AI call failed ({model}): {e}")
         return FALLBACK_REPLY
 
 
-async def _call_deepseek(prompt: str, system: str = SYSTEM_PROMPT, timeout: int = 30, max_tokens: int = 1024) -> str:
+async def _call_deepseek(prompt: str, system: str = SYSTEM_PROMPT, timeout: int = 30, max_tokens: int = 1024, history: list[dict] = None) -> str:
+    messages = [{"role": "system", "content": system}]
+    if history:
+        messages.extend(history)
+    messages.append({"role": "user", "content": prompt})
     async with httpx.AsyncClient(timeout=timeout) as client:
         resp = await client.post(
             f"{DEEPSEEK_BASE_URL}/v1/chat/completions",
             headers={"Authorization": f"Bearer {DEEPSEEK_API_KEY}"},
             json={
                 "model": "deepseek-chat",
-                "messages": [
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": prompt},
-                ],
+                "messages": messages,
                 "max_tokens": max_tokens,
                 "temperature": 0.7,
             },
@@ -46,9 +47,13 @@ async def _call_deepseek(prompt: str, system: str = SYSTEM_PROMPT, timeout: int 
         return resp.json()["choices"][0]["message"]["content"]
 
 
-async def _call_claude(prompt: str) -> str:
+async def _call_claude(prompt: str, history: list[dict] = None) -> str:
     if CLAUDE_BASE_URL:
-        return await _call_claude_openai_compat(prompt)
+        return await _call_claude_openai_compat(prompt, history=history)
+    messages = []
+    if history:
+        messages.extend(history)
+    messages.append({"role": "user", "content": prompt})
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
             "https://api.anthropic.com/v1/messages",
@@ -61,25 +66,26 @@ async def _call_claude(prompt: str) -> str:
                 "model": "claude-sonnet-4-20250514",
                 "max_tokens": 1024,
                 "system": SYSTEM_PROMPT,
-                "messages": [{"role": "user", "content": prompt}],
+                "messages": messages,
             },
         )
         resp.raise_for_status()
         return resp.json()["content"][0]["text"]
 
 
-async def _call_claude_openai_compat(prompt: str) -> str:
+async def _call_claude_openai_compat(prompt: str, history: list[dict] = None) -> str:
     """Call Claude via OpenAI-compatible proxy (cc switch)."""
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    if history:
+        messages.extend(history)
+    messages.append({"role": "user", "content": prompt})
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
             f"{CLAUDE_BASE_URL}/v1/chat/completions",
             headers={"Authorization": f"Bearer {CLAUDE_API_KEY}"},
             json={
                 "model": "claude-sonnet-4-20250514",
-                "messages": [
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt},
-                ],
+                "messages": messages,
                 "max_tokens": 1024,
                 "temperature": 0.7,
             },

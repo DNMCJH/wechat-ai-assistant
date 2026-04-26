@@ -1,7 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from app.services import faq_service, rag_service
+from app.services import faq_service, rag_service, keyword_service
 from app.data_layer.collector import init_db
 from app.content.content_db import init_content_db
 from app.api.chat import router as chat_router
@@ -22,6 +22,7 @@ async def lifespan(app: FastAPI):
     logger.info("Starting up...")
     init_db()
     init_content_db()
+    keyword_service.load_keywords()
     faq_service.load_faq()
     rag_service.load_index()
     logger.info("Ready.")

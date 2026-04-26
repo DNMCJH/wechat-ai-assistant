@@ -104,6 +104,7 @@ def _layout(title: str, body: str, toast: str = "", toast_type: str = "success")
     <a href="/dashboard" class="nav-brand">Content Dashboard</a>
     <div class="nav-links">
       <a href="/dashboard">Articles</a>
+      <a href="/dashboard/stats">Stats</a>
       <a href="/dashboard/new">New Article</a>
     </div>
   </div>
@@ -410,3 +411,124 @@ async def create_article(
         content=result.content, style=result.style, topic=result.topic,
     )
     return RedirectResponse(f"/preview/{article_id}", status_code=303)
+
+
+# ==================== Customer Service Stats ====================
+
+import sqlite3
+from datetime import datetime, timedelta
+from app.config import DB_PATH
+
+
+def _stats_query(sql: str, params: tuple = ()) -> list[dict]:
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(sql, params).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+@router.get("/dashboard/stats", response_class=HTMLResponse)
+async def dashboard_stats(days: int = 7):
+    since = (datetime.now() - timedelta(days=days)).isoformat()
+
+    total = _stats_query(
+        "SELECT COUNT(*) as cnt FROM interactions WHERE timestamp >= ?", (since,)
+    )[0]["cnt"]
+    avg_score = _stats_query(
+        "SELECT ROUND(AVG(weighted_score), 3) as v FROM interactions WHERE timestamp >= ? AND weighted_score IS NOT NULL", (since,)
+    )[0]["v"]
+    human_count = _stats_query(
+        "SELECT COUNT(*) as cnt FROM interactions WHERE timestamp >= ? AND action = 'human'", (since,)
+    )[0]["cnt"]
+    low_count = _stats_query(
+        "SELECT COUNT(*) as cnt FROM interactions WHERE timestamp >= ? AND weighted_score IS NOT NULL AND weighted_score < 0.65", (since,)
+    )[0]["cnt"]
+    by_source = _stats_query(
+        "SELECT source, COUNT(*) as cnt FROM interactions WHERE timestamp >= ? GROUP BY source", (since,)
+    )
+    by_category = _stats_query(
+        "SELECT category, COUNT(*) as cnt FROM interactions WHERE timestamp >= ? GROUP BY category ORDER BY cnt DESC LIMIT 5", (since,)
+    )
+    top_qs = _stats_query(
+        "SELECT query, COUNT(*) as cnt, category FROM interactions WHERE timestamp >= ? GROUP BY query ORDER BY cnt DESC LIMIT 10", (since,)
+    )
+    low_items = _stats_query(
+        "SELECT timestamp, query, reply, category, weighted_score FROM interactions "
+        "WHERE timestamp >= ? AND weighted_score IS NOT NULL AND weighted_score < 0.65 "
+        "ORDER BY weighted_score ASC LIMIT 10", (since,)
+    )
+
+    # --- Build HTML ---
+    score_display = f"{avg_score:.3f}" if avg_score else "N/A"
+    score_color = "#07c160" if (avg_score or 0) >= 0.8 else "#ff976a" if (avg_score or 0) >= 0.65 else "#fa5151"
+
+    cards_html = f"""
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px">
+  <div class="card" style="text-align:center"><div style="font-size:32px;font-weight:600">{total}</div><div style="color:#999;font-size:13px">Total Queries</div></div>
+  <div class="card" style="text-align:center"><div style="font-size:32px;font-weight:600;color:{score_color}">{score_display}</div><div style="color:#999;font-size:13px">Avg Score</div></div>
+  <div class="card" style="text-align:center"><div style="font-size:32px;font-weight:600;color:#1989fa">{human_count}</div><div style="color:#999;font-size:13px">Human Transfers</div></div>
+  <div class="card" style="text-align:center"><div style="font-size:32px;font-weight:600;color:#fa5151">{low_count}</div><div style="color:#999;font-size:13px">Low Quality</div></div>
+</div>"""
+
+    source_rows = "".join(
+        f"<tr><td>{r['source'] or 'unknown'}</td><td>{r['cnt']}</td></tr>" for r in by_source
+    ) or '<tr><td colspan="2" class="empty">No data</td></tr>'
+
+    cat_rows = "".join(
+        f"<tr><td>{r['category'] or 'unknown'}</td><td>{r['cnt']}</td></tr>" for r in by_category
+    ) or '<tr><td colspan="2" class="empty">No data</td></tr>'
+
+    tables_html = f"""
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px">
+  <div class="card">
+    <h3 style="font-size:16px;margin-bottom:12px">Source Distribution</h3>
+    <table><thead><tr><th>Source</th><th>Count</th></tr></thead><tbody>{source_rows}</tbody></table>
+  </div>
+  <div class="card">
+    <h3 style="font-size:16px;margin-bottom:12px">Top Categories</h3>
+    <table><thead><tr><th>Category</th><th>Count</th></tr></thead><tbody>{cat_rows}</tbody></table>
+  </div>
+</div>"""
+
+    top_rows = "".join(
+        f"<tr><td>{r['query'][:50]}</td><td>{r['cnt']}</td><td>{r['category'] or ''}</td></tr>" for r in top_qs
+    ) or '<tr><td colspan="3" class="empty">No data</td></tr>'
+
+    top_html = f"""
+<div class="card" style="margin-bottom:24px">
+  <h3 style="font-size:16px;margin-bottom:12px">Top Questions</h3>
+  <table><thead><tr><th>Question</th><th>Count</th><th>Category</th></tr></thead><tbody>{top_rows}</tbody></table>
+</div>"""
+
+    low_rows = ""
+    for r in low_items:
+        ts = r["timestamp"][:16].replace("T", " ")
+        sc = f"{r['weighted_score']:.3f}" if r["weighted_score"] else "N/A"
+        reply_short = (r["reply"] or "")[:80]
+        low_rows += f"""<tr>
+  <td>{ts}</td><td>{r['query'][:40]}</td>
+  <td style="font-size:12px;color:#999">{reply_short}</td>
+  <td style="color:#fa5151">{sc}</td></tr>"""
+    if not low_rows:
+        low_rows = '<tr><td colspan="4" class="empty">No low-quality answers</td></tr>'
+
+    low_html = f"""
+<div class="card">
+  <h3 style="font-size:16px;margin-bottom:12px">Low Quality Answers</h3>
+  <table><thead><tr><th>Time</th><th>Question</th><th>Reply</th><th>Score</th></tr></thead><tbody>{low_rows}</tbody></table>
+</div>"""
+
+    period_links = " ".join(
+        f'<a href="/dashboard/stats?days={d}" class="tab {"active" if days == d else ""}">{d}d</a>'
+        for d in [1, 7, 14, 30]
+    )
+
+    body = f"""
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+  <h2 style="font-size:20px">Customer Service Stats</h2>
+  <div class="tabs">{period_links}</div>
+</div>
+{cards_html}{tables_html}{top_html}{low_html}"""
+
+    return HTMLResponse(_layout("Stats", body))
